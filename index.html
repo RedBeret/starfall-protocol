@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="Starfall Protocol — a first-person science-fiction survival game for the browser."
+    />
+    <title>Starfall Protocol</title>
+  </head>
+  <body>
+    <main id="app">
+      <canvas id="game" aria-label="Starfall Protocol game"></canvas>
+      <div id="vignette" aria-hidden="true"></div>
+      <div id="scanlines" aria-hidden="true"></div>
+      <div id="damage-flash" aria-hidden="true"></div>
+
+      <section id="hud" aria-label="Mission status">
+        <div class="hud-block hud-block--left">
+          <p class="eyebrow">ARES STATION // DECK 07</p>
+          <div class="meter-row">
+            <span>VITALS</span>
+            <div class="meter"><i id="health-bar"></i></div>
+            <strong id="health-value">100</strong>
+          </div>
+        </div>
+        <div class="hud-block hud-block--right">
+          <p class="eyebrow">ARC CHARGE</p>
+          <div id="charge-pips" class="charge-pips" aria-label="Weapon charge"></div>
+        </div>
+        <div class="objective-panel">
+          <span class="objective-marker"></span>
+          <div>
+            <p>ACTIVE PROTOCOL</p>
+            <strong id="objective-text">Disable the security drone</strong>
+          </div>
+        </div>
+        <div id="target-panel" class="target-panel">
+          <span>SECURITY DRONE</span>
+          <div class="target-health"><i id="target-health-bar"></i></div>
+        </div>
+      </section>
+
+      <div id="reticle" aria-hidden="true"><span></span></div>
+      <p id="interaction-hint" class="interaction-hint">CLICK TO CAPTURE MOUSE</p>
+
+      <section id="overlay" class="overlay">
+        <div class="overlay-card">
+          <p class="kicker">ORBITAL INCIDENT // 03:17 UTC</p>
+          <h1 id="overlay-title">STARFALL<br /><span>PROTOCOL</span></h1>
+          <p id="overlay-copy" class="overlay-copy">
+            Ares Station is falling out of orbit. Security has marked every survivor hostile.
+            Disable the drone guarding the emergency bulkhead.
+          </p>
+          <button id="start-button" type="button">ENTER STATION</button>
+          <div class="control-grid">
+            <span><b>WASD / ARROWS</b> MOVE</span>
+            <span><b>MOUSE</b> LOOK</span>
+            <span><b>CLICK / SPACE</b> FIRE</span>
+            <span><b>SHIFT</b> SPRINT</span>
+            <span><b>F</b> FULLSCREEN</span>
+            <span><b>ESC</b> PAUSE</span>
+          </div>
+        </div>
+      </section>
+
+      <footer class="build-stamp">SP-TECHNICAL-SLICE // REDBERET</footer>
+    </main>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

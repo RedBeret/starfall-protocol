@@ -18,14 +18,23 @@ const check = (name) => { checks.push(name); console.log(`PASS ${name}`); };
 try {
   if (!suppliedUrl) {
     server = spawn(process.execPath, ['node_modules/vite/bin/vite.js', 'preview', '--host', '127.0.0.1', '--port', '4187', '--strictPort'], { stdio: 'pipe', windowsHide: true });
-    await new Promise((resolve, reject) => {
-      const timeout = setTimeout(() => reject(new Error('Preview server did not start')), 15_000);
-      server.on('error', (error) => { clearTimeout(timeout); reject(error); });
-      server.on('exit', (code) => { clearTimeout(timeout); reject(new Error(`Preview server exited: ${code}`)); });
-      server.stdout.on('data', (chunk) => {
-        if (String(chunk).includes('127.0.0.1:4187')) { clearTimeout(timeout); resolve(); }
-      });
-    });
+    let serverFailure;
+    let serverOutput = '';
+    server.on('error', (error) => { serverFailure = error; });
+    server.on('exit', (code) => { serverFailure = new Error(`Preview server exited: ${code}`); });
+    server.stdout.on('data', (chunk) => { serverOutput += String(chunk); });
+    server.stderr.on('data', (chunk) => { serverOutput += String(chunk); });
+    const deadline = Date.now() + 15_000;
+    let ready = false;
+    while (Date.now() < deadline && !ready) {
+      if (serverFailure) throw new Error(`${serverFailure}\n${serverOutput}`);
+      try {
+        const response = await fetch(url, { signal: AbortSignal.timeout(500) });
+        ready = response.ok && (await response.text()).includes('Starfall Protocol');
+      } catch { /* The local listener may not yet be ready. */ }
+      if (!ready) await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+    if (!ready) throw new Error(`Preview server did not start\n${serverOutput}`);
   }
   browser = await chromium.launch({ headless: true, args: ['--use-gl=angle', '--use-angle=swiftshader'] });
   page = await browser.newPage({ viewport: { width: 1280, height: 720 } });

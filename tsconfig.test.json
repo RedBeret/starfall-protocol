@@ -1,0 +1,10 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "allowImportingTsExtensions": false,
+    "rootDir": "src/game",
+    "outDir": "artifacts/test-build"
+  },
+  "include": ["src/game/EscapeMission.ts"]
+}

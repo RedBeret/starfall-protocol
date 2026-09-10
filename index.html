@@ -29,6 +29,28 @@
           <p class="eyebrow">ARC CHARGE</p>
           <div id="charge-pips" class="charge-pips" aria-label="Weapon charge"></div>
         </div>
+        <div id="mission-clock" class="mission-clock">
+          <span>ORBITAL DECAY</span>
+          <strong id="time-remaining">03:00</strong>
+        </div>
+        <div class="relay-status" aria-label="Power relays">
+          <p class="eyebrow">EMERGENCY CIRCUIT</p>
+          <ol id="relay-list"></ol>
+        </div>
+        <div class="deck-map" aria-label="Deck map">
+          <p class="eyebrow">DECK 07 / EGRESS</p>
+          <svg viewBox="-13 -19 26 31" role="img" aria-label="Your position and the three power relays">
+            <path d="M-11 10 V-10 H-2 V-18 H2 V-10 H11 V10Z" fill="#071a22" stroke="#557882" stroke-width="0.2" />
+            <path d="M0 8 V-16" stroke="#345563" stroke-width="0.12" stroke-dasharray="0.6 0.6" />
+            <rect x="-6.4" y="-0.4" width="2.4" height="2" fill="#30434a" />
+            <rect x="4" y="1.5" width="2.1" height="2.2" fill="#30434a" />
+            <g id="map-relays"></g>
+            <path id="map-door" d="M-2 -10 H2" stroke="#ff5871" stroke-width="0.5" />
+            <text x="0" y="-16.6" text-anchor="middle" fill="#8dffd0" font-size="1.4">EXIT</text>
+            <path id="map-player" d="M0 -0.9 L0.65 0.65 L0 0.35 L-0.65 0.65Z" fill="#eaffff" />
+          </svg>
+          <p>01 AUX · 02 COOLANT · 03 NAV</p>
+        </div>
         <div class="objective-panel">
           <span class="objective-marker"></span>
           <div>
@@ -44,6 +66,7 @@
 
       <div id="reticle" aria-hidden="true"><span></span></div>
       <p id="interaction-hint" class="interaction-hint">CLICK TO CAPTURE MOUSE</p>
+      <p id="relay-prompt" class="relay-prompt is-hidden" aria-live="polite"></p>
 
       <section id="overlay" class="overlay">
         <div class="overlay-card">
@@ -51,21 +74,26 @@
           <h1 id="overlay-title">STARFALL<br /><span>PROTOCOL</span></h1>
           <p id="overlay-copy" class="overlay-copy">
             Ares Station is falling out of orbit. Security has marked every survivor hostile.
-            Disable the drone guarding the emergency bulkhead.
+            Disable the security drone. Align three power relays with their marked directions,
+            then reach the escape pod before the three-minute window closes.
           </p>
           <button id="start-button" type="button">ENTER STATION</button>
+          <div id="run-results" class="run-results" hidden></div>
           <div class="control-grid">
             <span><b>WASD / ARROWS</b> MOVE</span>
             <span><b>MOUSE</b> LOOK</span>
             <span><b>CLICK / SPACE</b> FIRE</span>
             <span><b>SHIFT</b> SPRINT</span>
+            <span><b>E</b> ROTATE RELAY</span>
             <span><b>F</b> FULLSCREEN</span>
-            <span><b>ESC</b> PAUSE</span>
+            <span><b>ESC / P</b> PAUSE</span>
+            <span><b>R</b> RESTART</span>
           </div>
+          <p class="input-note">Keyboard and mouse required. Relays are numbered on your deck map.</p>
         </div>
       </section>
 
-      <footer class="build-stamp">SP-TECHNICAL-SLICE // REDBERET</footer>
+      <footer class="build-stamp">STARFALL PROTOCOL // REDBERET</footer>
     </main>
     <script type="module" src="/src/main.ts"></script>
   </body>

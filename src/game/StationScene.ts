@@ -1,10 +1,22 @@
 import * as THREE from 'three';
+import { RELAYS } from './EscapeMission';
 
 type CollisionBox = {
   minX: number;
   maxX: number;
   minZ: number;
   maxZ: number;
+};
+
+type RelayDisplay = {
+  context: CanvasRenderingContext2D;
+  texture: THREE.CanvasTexture;
+  statusMaterial: THREE.MeshStandardMaterial;
+  number: number;
+  name: string;
+  target: number;
+  orientation: number;
+  powered: boolean;
 };
 
 const ROOM_LIMITS = {
@@ -30,9 +42,13 @@ export class StationScene {
   readonly drone = new THREE.Group();
   readonly droneTargets: THREE.Object3D[] = [];
   readonly spawn = new THREE.Vector3(0, 1.7, 8.2);
+  readonly extraction = new THREE.Vector3(0, 1.7, -16);
 
   private readonly obstacles: CollisionBox[] = [];
   private readonly alarmLights: THREE.PointLight[] = [];
+  private readonly relayDisplays = new Map<string, RelayDisplay>();
+  private readonly doorPanels: THREE.Mesh[] = [];
+  private readonly droneLight = new THREE.PointLight(0xff2945, 5, 5, 2);
   private readonly sparks: THREE.Points;
   private readonly droneCoreMaterial: THREE.MeshStandardMaterial;
   private readonly droneEyeMaterial: THREE.MeshStandardMaterial;
@@ -40,15 +56,16 @@ export class StationScene {
   private readonly doorStatusMaterial: THREE.MeshStandardMaterial;
   private hitFlash = 0;
   private doorOpenAmount = 0;
+  private doorUnlockedValue = false;
   private droneHealthValue = 3;
 
   constructor() {
     this.scene.background = new THREE.Color(0x04070d);
-    this.scene.fog = new THREE.FogExp2(0x07111b, 0.026);
+    this.scene.fog = new THREE.FogExp2(0x0c1922, 0.018);
 
-    const darkMetal = new THREE.MeshStandardMaterial({ color: 0x18242d, roughness: 0.72, metalness: 0.72 });
-    const panelMetal = new THREE.MeshStandardMaterial({ color: 0x263b46, roughness: 0.55, metalness: 0.78 });
-    const floorMetal = new THREE.MeshStandardMaterial({ color: 0x101b23, roughness: 0.82, metalness: 0.56 });
+    const darkMetal = new THREE.MeshStandardMaterial({ color: 0x2b3d49, roughness: 0.72, metalness: 0.52 });
+    const panelMetal = new THREE.MeshStandardMaterial({ color: 0x405966, roughness: 0.55, metalness: 0.62 });
+    const floorMetal = new THREE.MeshStandardMaterial({ color: 0x253742, roughness: 0.82, metalness: 0.36 });
     const cyanGlow = new THREE.MeshStandardMaterial({
       color: 0x4fd8df,
       emissive: 0x25b8c2,
@@ -65,6 +82,8 @@ export class StationScene {
     this.addRoomShell(darkMetal, panelMetal, floorMetal, cyanGlow);
     this.addStructuralDetails(panelMetal, cyanGlow, redGlow);
     this.addObstacles(panelMetal);
+    this.addRelayConsoles(panelMetal);
+    this.addExtractionCorridor(darkMetal, floorMetal, cyanGlow);
 
     this.doorMaterial = new THREE.MeshStandardMaterial({
       color: 0x111b22,
@@ -99,18 +118,47 @@ export class StationScene {
   }
 
   get doorUnlocked(): boolean {
-    return !this.droneAlive;
+    return this.doorUnlockedValue;
+  }
+
+  get doorPassable(): boolean {
+    return this.doorUnlockedValue && this.doorOpenAmount >= 0.9;
+  }
+
+  setDoorUnlocked(unlocked: boolean): void {
+    this.doorUnlockedValue = unlocked;
+    this.doorStatusMaterial.color.setHex(unlocked ? 0x65ffbc : 0xff384f);
+    this.doorStatusMaterial.emissive.setHex(unlocked ? 0x26c982 : 0xe31534);
+  }
+
+  setRelayState(id: string, orientation: number, powered: boolean): void {
+    const display = this.relayDisplays.get(id);
+    if (!display || !Number.isInteger(orientation) || orientation < 0 || orientation > 3) return;
+    if (display.orientation === orientation && display.powered === powered) return;
+    display.orientation = orientation;
+    display.powered = powered;
+    this.paintRelay(display);
   }
 
   reset(): void {
     this.droneHealthValue = 3;
     this.hitFlash = 0;
     this.doorOpenAmount = 0;
+    this.setDoorUnlocked(false);
+    this.doorPanels.forEach((panel, index) => { panel.position.x = (index === 0 ? -1 : 1) * 1.075; });
+    this.doorMaterial.emissive.setHex(0x16040a);
+    this.relayDisplays.forEach((display) => {
+      display.orientation = 0;
+      display.powered = false;
+      this.paintRelay(display);
+    });
     this.drone.visible = true;
     this.drone.position.set(0, 1.95, -5.8);
     this.drone.rotation.set(0, 0, 0);
     this.droneCoreMaterial.color.setHex(0x243842);
     this.droneCoreMaterial.emissive.setHex(0x071116);
+    this.droneCoreMaterial.emissiveIntensity = 1;
+    this.droneLight.intensity = 5;
     this.droneEyeMaterial.color.setHex(0xff384f);
     this.droneEyeMaterial.emissive.setHex(0xe31534);
     this.doorStatusMaterial.color.setHex(0xff384f);
@@ -122,12 +170,13 @@ export class StationScene {
     this.droneHealthValue -= 1;
     this.hitFlash = 0.18;
     if (!this.droneAlive) {
+      this.hitFlash = 0;
       this.droneCoreMaterial.color.setHex(0x0b1114);
       this.droneCoreMaterial.emissive.setHex(0x000000);
       this.droneEyeMaterial.color.setHex(0x26313a);
       this.droneEyeMaterial.emissive.setHex(0x000000);
-      this.doorStatusMaterial.color.setHex(0x65ffbc);
-      this.doorStatusMaterial.emissive.setHex(0x26c982);
+      this.droneCoreMaterial.emissiveIntensity = 0;
+      this.droneLight.intensity = 0;
     }
     return this.droneHealthValue;
   }
@@ -136,11 +185,15 @@ export class StationScene {
     if (
       x - radius < ROOM_LIMITS.minX ||
       x + radius > ROOM_LIMITS.maxX ||
-      z - radius < ROOM_LIMITS.minZ ||
+      z - radius < -17.35 ||
       z + radius > ROOM_LIMITS.maxZ
     ) {
       return false;
     }
+
+    // The room and narrow corridor share only the bulkhead opening.
+    if (z - radius < ROOM_LIMITS.minZ && (x - radius < -2.05 || x + radius > 2.05)) return false;
+    if (z - radius < -10.4 && !this.doorPassable) return false;
 
     return !this.obstacles.some(
       (box) =>
@@ -164,11 +217,17 @@ export class StationScene {
     } else {
       this.drone.position.y = THREE.MathUtils.damp(this.drone.position.y, 0.62, 3.4, delta);
       this.drone.rotation.z = THREE.MathUtils.damp(this.drone.rotation.z, 0.88, 3, delta);
-      this.doorOpenAmount = Math.min(1, this.doorOpenAmount + delta * 0.7);
-      this.doorMaterial.emissive.setRGB(0.02, 0.2 * this.doorOpenAmount, 0.13 * this.doorOpenAmount);
     }
 
-    if (this.hitFlash > 0) {
+    this.doorOpenAmount = THREE.MathUtils.clamp(
+      this.doorOpenAmount + delta * (this.doorUnlockedValue ? 0.7 : -0.7), 0, 1,
+    );
+    this.doorPanels.forEach((panel, index) => {
+      panel.position.x = (index === 0 ? -1 : 1) * (1.075 + this.doorOpenAmount * 2.4);
+    });
+    this.doorMaterial.emissive.setRGB(0.02, 0.12 * this.doorOpenAmount, 0.08 * this.doorOpenAmount);
+
+    if (this.droneAlive && this.hitFlash > 0) {
       this.hitFlash -= delta;
       this.droneCoreMaterial.emissive.setHex(0x86fbff);
       this.droneCoreMaterial.emissiveIntensity = 7;
@@ -188,7 +247,9 @@ export class StationScene {
   ): void {
     this.addBox('floor', [24, 0.5, 22], [0, -0.25, 0], floorMetal, true);
     this.addBox('ceiling', [24, 0.45, 22], [0, 5.7, 0], darkMetal, false);
-    this.addBox('far-wall', [24, 6, 0.5], [0, 2.75, -11], darkMetal, true);
+    this.addBox('far-wall-left', [9.75, 6, 0.5], [-7.125, 2.75, -11], darkMetal, true);
+    this.addBox('far-wall-right', [9.75, 6, 0.5], [7.125, 2.75, -11], darkMetal, true);
+    this.addBox('far-wall-lintel', [4.5, 1, 0.5], [0, 5.25, -11], darkMetal, true);
     this.addBox('rear-wall', [24, 6, 0.5], [0, 2.75, 11], darkMetal, true);
     this.addBox('left-wall', [0.5, 6, 22], [-12, 2.75, 0], darkMetal, true);
     this.addBox('right-wall', [0.5, 6, 22], [12, 2.75, 0], darkMetal, true);
@@ -248,7 +309,7 @@ export class StationScene {
     reactorRingMaterial.emissiveIntensity = 3;
     for (const radius of [1.55, 1.9]) {
       const ring = new THREE.Mesh(new THREE.TorusGeometry(radius, 0.055, 8, 56), reactorRingMaterial);
-      ring.position.set(0, 2.65, -10.65);
+      ring.position.set(-7.1, 2.65, -10.65);
       ring.castShadow = true;
       this.scene.add(ring);
     }
@@ -287,8 +348,159 @@ export class StationScene {
     this.addBox('door-frame-top', [5.2, 0.38, 0.6], [0, 4.95, -10.52], this.doorMaterial, true);
     this.addBox('door-frame-left', [0.38, 4.5, 0.6], [-2.42, 2.5, -10.52], this.doorMaterial, true);
     this.addBox('door-frame-right', [0.38, 4.5, 0.6], [2.42, 2.5, -10.52], this.doorMaterial, true);
-    this.addBox('sealed-bulkhead', [4.3, 4.1, 0.36], [0, 2.35, -10.62], this.doorMaterial, true);
+    for (const side of [-1, 1]) {
+      const panel = this.addBox('sliding-bulkhead', [2.15, 4.5, 0.36], [side * 1.075, 2.25, -10.62], this.doorMaterial, true);
+      this.doorPanels.push(panel);
+    }
     this.addBox('door-status', [1.2, 0.12, 0.12], [0, 4.55, -10.36], this.doorStatusMaterial, false);
+  }
+
+  private addRelayConsoles(panelMetal: THREE.MeshStandardMaterial): void {
+    const relays = RELAYS.map(({ id, x, z, targetOrientation }) => ({
+      id, name: id.toUpperCase(), x, z, target: targetOrientation,
+    }));
+    const casing = panelMetal.clone();
+    casing.color.setHex(0x344953);
+    for (const [index, relay] of relays.entries()) {
+      const statusMaterial = new THREE.MeshStandardMaterial({
+        color: 0xf9bf65, emissive: 0xffa52d, emissiveIntensity: 1.4, roughness: 0.4,
+      });
+      this.addBox(`${relay.id}-base`, [1.6, 0.18, 1.1], [relay.x, 0.09, relay.z], casing, true);
+      this.addBox(`${relay.id}-pedestal`, [0.72, 1.2, 0.38], [relay.x, 0.7, relay.z], panelMetal, true);
+      this.addBox(`${relay.id}-console`, [1.62, 1.78, 0.48], [relay.x, 1.72, relay.z], casing, true);
+      this.addBox(`${relay.id}-status`, [1.42, 0.06, 0.04], [relay.x, 0.91, relay.z + 0.25], statusMaterial, false);
+
+      const canvas = document.createElement('canvas');
+      canvas.width = 512;
+      canvas.height = 512;
+      const context = canvas.getContext('2d');
+      if (!context) throw new Error('Relay display requires a 2D canvas context.');
+      const texture = new THREE.CanvasTexture(canvas);
+      texture.colorSpace = THREE.SRGBColorSpace;
+      const display: RelayDisplay = {
+        context, texture, statusMaterial, number: index + 1, name: relay.name,
+        target: relay.target, orientation: 0, powered: false,
+      };
+      const screen = new THREE.Mesh(
+        new THREE.PlaneGeometry(1.43, 1.43),
+        new THREE.MeshBasicMaterial({ map: texture, toneMapped: false }),
+      );
+      screen.name = `${relay.id}-display`;
+      screen.position.set(relay.x, 1.78, relay.z + 0.247);
+      this.scene.add(screen);
+      this.relayDisplays.set(relay.id, display);
+      this.paintRelay(display);
+      this.obstacles.push({ minX: relay.x - 0.82, maxX: relay.x + 0.82, minZ: relay.z - 0.55, maxZ: relay.z + 0.55 });
+    }
+  }
+
+  private paintRelay(display: RelayDisplay): void {
+    const ctx = display.context;
+    const accent = display.powered ? '#78f0c3' : '#ffc376';
+    ctx.fillStyle = '#081b25';
+    ctx.fillRect(0, 0, 512, 512);
+    ctx.strokeStyle = '#285060';
+    ctx.lineWidth = 3;
+    ctx.strokeRect(12, 12, 488, 488);
+    ctx.fillStyle = accent;
+    ctx.font = 'bold 34px monospace';
+    ctx.fillText(`0${display.number} / ${display.name}`, 28, 61);
+    ctx.fillStyle = '#a4bec6';
+    ctx.font = '20px monospace';
+    ctx.fillText('RELAY DIRECTION', 28, 103);
+
+    const arrow = (x: number, y: number, rotation: number, length: number, color: string) => {
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(rotation * Math.PI / 2);
+      ctx.strokeStyle = color;
+      ctx.lineWidth = Math.max(5, length * 0.13);
+      ctx.lineCap = 'square';
+      ctx.lineJoin = 'miter';
+      ctx.beginPath();
+      ctx.moveTo(0, length * 0.5);
+      ctx.lineTo(0, -length * 0.5);
+      ctx.moveTo(-length * 0.35, -length * 0.15);
+      ctx.lineTo(0, -length * 0.5);
+      ctx.lineTo(length * 0.35, -length * 0.15);
+      ctx.stroke();
+      ctx.restore();
+    };
+    ctx.strokeStyle = '#23434e';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(179, 260, 110, 0, Math.PI * 2);
+    ctx.stroke();
+    arrow(179, 260, display.orientation, 135, accent);
+    ctx.fillStyle = '#14323e';
+    ctx.fillRect(334, 157, 143, 205);
+    ctx.fillStyle = '#b7cbd0';
+    ctx.font = 'bold 22px monospace';
+    ctx.fillText('SET TO', 365, 195);
+    arrow(406, 267, display.target, 70, '#d5e8eb');
+    ctx.fillStyle = accent;
+    ctx.font = 'bold 26px monospace';
+    ctx.fillText(display.powered ? 'POWER CONNECTED' : 'CIRCUIT OPEN', 28, 424);
+    ctx.fillStyle = '#9eb8c2';
+    ctx.font = '20px monospace';
+    ctx.fillText('E / ROTATE CLOCKWISE', 28, 468);
+    display.statusMaterial.color.set(display.powered ? 0x78f0c3 : 0xffc376);
+    display.statusMaterial.emissive.set(display.powered ? 0x39c991 : 0xffa52d);
+    display.texture.needsUpdate = true;
+  }
+
+  private addExtractionCorridor(
+    darkMetal: THREE.MeshStandardMaterial,
+    floorMetal: THREE.MeshStandardMaterial,
+    cyanGlow: THREE.MeshStandardMaterial,
+  ): void {
+    this.addBox('corridor-floor', [4.7, 0.5, 7.2], [0, -0.25, -14.35], floorMetal, true);
+    this.addBox('corridor-ceiling', [4.7, 0.4, 7.2], [0, 4.9, -14.35], darkMetal, false);
+    this.addBox('corridor-left-wall', [0.4, 5, 7.2], [-2.35, 2.4, -14.35], darkMetal, true);
+    this.addBox('corridor-right-wall', [0.4, 5, 7.2], [2.35, 2.4, -14.35], darkMetal, true);
+    this.addBox('corridor-end-wall', [5.1, 5, 0.4], [0, 2.4, -17.75], darkMetal, true);
+    for (const x of [-1.9, 1.9]) {
+      this.addBox('extraction-guide', [0.08, 0.03, 6.5], [x, 0.025, -14.2], cyanGlow, false);
+      this.addBox('corridor-wall-light', [0.03, 0.12, 5.2], [x * 1.12, 2.8, -14.3], cyanGlow, false);
+    }
+    const padMaterial = new THREE.MeshStandardMaterial({
+      color: 0x193a39, emissive: 0x31e4b0, emissiveIntensity: 0.45, roughness: 0.65,
+    });
+    const pad = new THREE.Mesh(new THREE.CylinderGeometry(1.5, 1.5, 0.045, 40), padMaterial);
+    pad.name = 'extraction-pad';
+    pad.position.set(0, 0.04, -16);
+    this.scene.add(pad);
+    const ringMaterial = cyanGlow.clone();
+    ringMaterial.color.setHex(0x7effc5);
+    ringMaterial.emissive.setHex(0x27d792);
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(1.4, 0.035, 6, 48), ringMaterial);
+    ring.rotation.x = -Math.PI / 2;
+    ring.position.set(0, 0.075, -16);
+    this.scene.add(ring);
+    const beacon = new THREE.PointLight(0x83ffd5, 14, 10, 2);
+    beacon.position.set(0, 2.5, -15.3);
+    this.scene.add(beacon);
+
+    const canvas = document.createElement('canvas');
+    canvas.width = 768;
+    canvas.height = 192;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) throw new Error('Extraction sign requires a 2D canvas context.');
+    ctx.fillStyle = '#10282c';
+    ctx.fillRect(0, 0, 768, 192);
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#9affd1';
+    ctx.font = 'bold 67px monospace';
+    ctx.fillText('ESCAPE POD', 384, 85);
+    ctx.fillStyle = '#c1dcd7';
+    ctx.font = '29px monospace';
+    ctx.fillText('BOARD AT THE GREEN PAD', 384, 142);
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    const sign = new THREE.Mesh(new THREE.PlaneGeometry(3.6, 0.9), new THREE.MeshBasicMaterial({ map: texture, toneMapped: false }));
+    sign.position.set(0, 3.5, -17.52);
+    sign.name = 'extraction-sign';
+    this.scene.add(sign);
   }
 
   private addDrone(): void {
@@ -334,16 +546,15 @@ export class StationScene {
     this.drone.add(collider);
     this.droneTargets.push(collider, body, eye);
 
-    const droneLight = new THREE.PointLight(0xff2945, 5, 5, 2);
-    droneLight.position.set(0, 0.05, 0.45);
-    this.drone.add(droneLight);
+    this.droneLight.position.set(0, 0.05, 0.45);
+    this.drone.add(this.droneLight);
 
     this.drone.position.set(0, 1.95, -5.8);
     this.scene.add(this.drone);
   }
 
   private addLighting(): void {
-    this.scene.add(new THREE.HemisphereLight(0x7bcbd6, 0x081018, 1.05));
+    this.scene.add(new THREE.HemisphereLight(0xb9e4e8, 0x29404a, 1.7));
 
     const keyLight = new THREE.DirectionalLight(0xc7f9ff, 2.2);
     keyLight.position.set(3, 7, 6);

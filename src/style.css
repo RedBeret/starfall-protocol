@@ -79,7 +79,7 @@ body {
 .hud-block {
   position: absolute;
   top: 24px;
-  min-width: min(360px, 42vw);
+  min-width: min(320px, 30vw);
   padding: 12px 16px 14px;
   border-top: 1px solid rgba(104, 233, 255, 0.75);
   border-bottom: 1px solid rgba(104, 233, 255, 0.22);
@@ -298,6 +298,7 @@ body {
   display: grid;
   place-items: center;
   padding: 28px;
+  overflow-y: auto;
   background:
     linear-gradient(90deg, rgba(2, 8, 13, 0.92), rgba(2, 8, 13, 0.45) 52%, rgba(2, 8, 13, 0.78)),
     radial-gradient(circle at 50% 35%, rgba(18, 97, 113, 0.19), transparent 48%);
@@ -312,7 +313,7 @@ body {
 
 .overlay-card {
   width: min(720px, 92vw);
-  padding: clamp(28px, 5vw, 62px);
+  padding: clamp(24px, 4vw, 46px);
   border-left: 2px solid #64dfea;
   background: linear-gradient(115deg, rgba(6, 22, 31, 0.93), rgba(5, 13, 20, 0.72));
   box-shadow: 0 28px 80px rgba(0, 0, 0, 0.48);
@@ -331,7 +332,7 @@ body {
 h1 {
   margin: 0;
   color: #eafdff;
-  font-size: clamp(58px, 10vw, 116px);
+  font-size: clamp(52px, 9vw, 104px);
   font-weight: 700;
   line-height: 0.72;
   letter-spacing: -0.025em;
@@ -346,9 +347,9 @@ h1 span {
 
 .overlay-copy {
   max-width: 590px;
-  margin: 30px 0 26px;
+  margin: 24px 0 20px;
   color: #b7ccd3;
-  font-size: clamp(18px, 2.3vw, 23px);
+  font-size: clamp(17px, 2.1vw, 21px);
   line-height: 1.45;
   letter-spacing: 0.025em;
 }
@@ -402,6 +403,83 @@ h1 span {
   pointer-events: none;
 }
 
+.mission-clock {
+  position: absolute;
+  top: 22px;
+  left: 50%;
+  transform: translateX(-50%);
+  text-align: center;
+  color: #ffce8b;
+  font-family: 'Share Tech Mono', monospace;
+}
+
+.mission-clock span { display: block; font-size: 10px; letter-spacing: 0.16em; }
+.mission-clock strong { display: block; font-size: 32px; font-weight: 400; margin-top: 3px; }
+.mission-clock.is-urgent { color: #ff647c; }
+.relay-status { position: absolute; left: 24px; top: 118px; }
+.relay-status ol { list-style: none; padding: 0; margin: 0; }
+.relay-status li {
+  margin: 5px 0;
+  padding: 5px 10px;
+  border-left: 2px solid #dfa750;
+  background: rgba(4, 15, 22, 0.75);
+  color: #ffd19a;
+  font: 12px 'Share Tech Mono', monospace;
+}
+.relay-status li.is-powered { color: #99ffd4; border-color: #7dffc6; }
+.deck-map {
+  position: absolute;
+  right: 24px;
+  bottom: 48px;
+  width: 150px;
+  padding: 10px;
+  background: rgba(4, 15, 22, 0.82);
+  border: 1px solid #254c58;
+}
+.deck-map svg { display: block; width: 100%; }
+.deck-map p:last-child { font: 8px 'Share Tech Mono', monospace; color: #7c9ba5; margin: 6px 0 0; }
+.deck-map .eyebrow { font-size: 9px; }
+.relay-prompt {
+  position: absolute;
+  top: calc(50% + 60px);
+  left: 50%;
+  z-index: 4;
+  transform: translateX(-50%);
+  max-width: calc(100vw - 32px);
+  width: max-content;
+  margin: 0;
+  padding: 12px 18px;
+  border: 1px solid #ffbe62;
+  background: rgba(8, 22, 28, 0.94);
+  color: #ffe0b0;
+  font: 13px 'Share Tech Mono', monospace;
+  text-align: center;
+  pointer-events: none;
+}
+.relay-prompt.is-hidden { display: none; }
+.run-results { display: grid; grid-template-columns: repeat(3, 1fr); margin-top: 24px; border-top: 1px solid #315561; padding-top: 16px; gap: 12px; }
+.run-results[hidden] { display: none; }
+.run-results span { display: block; color: #7fabb8; font: 10px 'Share Tech Mono', monospace; }
+.run-results strong { display: block; margin-top: 5px; font: 25px 'Share Tech Mono', monospace; color: #bcffe8; }
+.input-note { margin: 14px 0 0; color: #8ba7b1; font-size: 13px; letter-spacing: 0.025em; }
+
+@media (max-width: 950px) {
+  .deck-map { width: 115px; right: 12px; bottom: 120px; }
+  .relay-status { top: 95px; left: 12px; }
+  .relay-status li { font-size: 10px; }
+  .mission-clock strong { font-size: 24px; }
+  .mission-clock span { font-size: 8px; }
+}
+
+@media (max-height: 650px) {
+  .overlay { place-items: start center; }
+  .overlay-card { margin: auto 0; padding: 24px; }
+  h1 { font-size: 64px; }
+  .overlay-copy { margin: 18px 0; font-size: 17px; }
+  .kicker { margin-bottom: 18px; }
+  .control-grid { margin-top: 18px; }
+}
+
 body[data-mode='briefing'] #hud,
 body[data-mode='briefing'] #reticle,
 body[data-mode='briefing'] .interaction-hint,
@@ -414,7 +492,7 @@ body[data-mode='failed'] #reticle {
 @media (max-width: 720px) {
   .hud-block {
     top: 12px;
-    min-width: calc(50vw - 18px);
+    min-width: 27vw;
     padding: 8px 10px 10px;
   }
 
@@ -429,6 +507,9 @@ body[data-mode='failed'] #reticle {
   .meter-row {
     grid-template-columns: auto 1fr;
   }
+
+  .hud-block .eyebrow { font-size: 8px; }
+  .mission-clock { top: 12px; }
 
   .meter-row strong {
     display: none;

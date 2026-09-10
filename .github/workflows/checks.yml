@@ -10,6 +10,7 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -24,3 +25,14 @@ jobs:
         run: npm run build
       - name: Test mission rules
         run: npm test
+      - name: Install test browser
+        run: npx playwright install --with-deps chromium
+      - name: Play through the mission
+        run: npm run test:browser
+      - name: Save gameplay evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: gameplay-check
+          path: artifacts/browser-check
+          retention-days: 14

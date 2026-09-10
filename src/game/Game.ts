@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js';
 import { StationScene } from './StationScene';
 import { EscapeMission, RELAYS } from './EscapeMission';
+import { guardPointerCapture } from './PointerCaptureGuard';
 
 type GameMode = 'briefing' | 'playing' | 'paused' | 'complete' | 'failed';
 
@@ -93,6 +94,7 @@ export class Game {
     this.camera = new THREE.PerspectiveCamera(70, 1, 0.06, 90);
     this.camera.position.copy(this.station.spawn);
     this.controls = new PointerLockControls(this.camera, this.canvas);
+    guardPointerCapture(this.controls, this.canvas.ownerDocument);
     this.station.scene.add(this.camera);
     this.muzzleLight.position.set(0.22, -0.18, -0.5);
     this.camera.add(this.muzzleLight);

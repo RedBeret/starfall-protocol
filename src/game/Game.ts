@@ -360,6 +360,7 @@ export class Game {
     this.shotsFired += 1;
     this.muzzleLight.intensity = 9;
 
+    this.station.scene.updateMatrixWorld(true);
     this.raycaster.setFromCamera(new THREE.Vector2(0, 0), this.camera);
     this.raycaster.far = 28;
     const intersections = this.raycaster.intersectObjects(this.station.droneTargets, true);
@@ -476,8 +477,10 @@ export class Game {
   private frame(time: number): void {
     const delta = Math.min((time - this.lastFrame) / 1000, 0.05);
     this.lastFrame = time;
-    if (!this.manualStepping) this.update(delta);
-    this.render();
+    if (!this.manualStepping) {
+      this.update(delta);
+      this.render();
+    }
     requestAnimationFrame((nextTime) => this.frame(nextTime));
   }
 
@@ -488,6 +491,7 @@ export class Game {
     const steps = Math.floor((this.manualRemainder + 1e-9) / FIXED_STEP);
     this.manualRemainder -= steps * FIXED_STEP;
     for (let index = 0; index < steps; index += 1) this.update(FIXED_STEP);
+    this.updateHud();
     this.render();
   }
 

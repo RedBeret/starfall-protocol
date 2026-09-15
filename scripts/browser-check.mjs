@@ -66,6 +66,7 @@ try {
     if (after.mode === 'playing') assert.ok(Math.abs(after.player.z - z) < 0.15, `Blocked z route: wanted ${z}, got ${after.player.z}`);
   };
   const capture = async (name) => {
+    await step(0);
     await page.screenshot({ path: `${output}/${name}.png` });
     await writeFile(`${output}/${name}.json`, JSON.stringify(await state(), null, 2));
   };
@@ -175,6 +176,8 @@ try {
   assert.equal((await state()).weapon.charge, 6);
   check('room collision, missed shots, and weapon recharge');
   await restart();
+  await page.keyboard.press('Space');
+  assert.equal((await state()).weapon.hits, 1, 'First shot after restart must use reset transforms');
   const beforeSprint = await state();
   await page.keyboard.down('Shift');
   await move('w', 1);
@@ -183,6 +186,14 @@ try {
   await page.mouse.move(660, 345);
   await page.mouse.move(680, 330);
   assert.notEqual((await state()).player.headingDegrees, 0);
+  await page.mouse.move(1150, 330);
+  await page.keyboard.press('Space');
+  assert.equal((await state()).weapon.shotsFired, 2);
+  assert.equal((await state()).weapon.hits, 1, 'Turning before a frame must use the new aim');
+  const beforeRefresh = await state();
+  await step(0);
+  assert.deepEqual(await state(), beforeRefresh);
+  check('immediate raycasts use current transforms; zero-time refresh preserves state');
   await page.keyboard.press('f');
   await page.waitForFunction(() => document.fullscreenElement?.tagName === 'HTML');
   assert.equal(await page.locator('#hud').isVisible(), true);
@@ -196,12 +207,28 @@ try {
   const startBounds = await page.locator('#start-button').boundingBox();
   assert.ok(startBounds && startBounds.y >= 0 && startBounds.y + startBounds.height <= 540);
   check('compact desktop pause screen keeps resume reachable');
+  const realtime = await browser.newPage({ viewport: { width: 960, height: 540 } });
+  realtime.on('pageerror', (error) => errors.push(String(error)));
+  realtime.on('console', (message) => { if (message.type() === 'error') errors.push(message.text()); });
+  await realtime.goto(url, { waitUntil: 'networkidle' });
+  await realtime.click('#start-button');
+  await realtime.waitForFunction(() => JSON.parse(window.render_game_to_text()).pointerLocked);
+  const liveStart = await realtime.evaluate(() => JSON.parse(window.render_game_to_text()));
+  await realtime.keyboard.down('w');
+  await realtime.waitForFunction((before) => {
+    const current = JSON.parse(window.render_game_to_text());
+    return current.player.z < before.player.z - 0.35 && current.mission.remainingSeconds < before.mission.remainingSeconds;
+  }, liveStart);
+  await realtime.keyboard.up('w');
+  await realtime.close();
+  check('normal play advances movement and the mission clock without test hooks');
   assert.deepEqual(errors, [], 'Browser errors');
   await writeFile(`${output}/report.json`, JSON.stringify({ url, checks, errors }, null, 2));
   console.log(`Browser checks passed: ${checks.length}`);
 } catch (error) {
+  const gameState = page ? await page.evaluate(() => window.render_game_to_text?.()).catch(() => null) : null;
   if (page) await page.screenshot({ path: `${output}/failure.png` }).catch(() => {});
-  await writeFile(`${output}/failure.json`, JSON.stringify({ error: String(error), checks, errors }, null, 2));
+  await writeFile(`${output}/failure.json`, JSON.stringify({ error: String(error), gameState, checks, errors }, null, 2));
   throw error;
 } finally {
   if (browser) await browser.close();

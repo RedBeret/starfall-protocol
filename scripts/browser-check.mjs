@@ -180,6 +180,7 @@ try {
   await move('w', 1);
   await page.keyboard.up('Shift');
   assert.ok(beforeSprint.player.z - (await state()).player.z > 6);
+  await page.mouse.move(660, 345);
   await page.mouse.move(680, 330);
   assert.notEqual((await state()).player.headingDegrees, 0);
   await page.keyboard.press('f');

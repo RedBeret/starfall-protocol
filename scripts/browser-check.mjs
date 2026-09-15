@@ -38,12 +38,21 @@ try {
   }
   browser = await chromium.launch({ headless: true, args: ['--use-gl=angle', '--use-angle=swiftshader'] });
   page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+  await page.addInitScript(() => {
+    window.__pointerSamples = 0;
+    document.addEventListener('mousemove', () => { window.__pointerSamples++; }, { capture: true });
+  });
   page.on('pageerror', (error) => errors.push(String(error)));
   page.on('console', (message) => { if (message.type() === 'error') errors.push(message.text()); });
   await page.goto(url, { waitUntil: 'networkidle' });
   await page.waitForFunction(() => typeof window.render_game_to_text === 'function');
   const state = () => page.evaluate(() => JSON.parse(window.render_game_to_text()));
   const step = (ms) => page.evaluate((duration) => window.advanceTime(duration), ms);
+  const look = async (x, y) => {
+    const before = await page.evaluate(() => window.__pointerSamples);
+    await page.mouse.move(x, y);
+    await page.waitForFunction((samples) => window.__pointerSamples > samples, before);
+  };
   const shot = async () => { await page.keyboard.press('Space'); await step(250); };
   const restart = async () => {
     await page.keyboard.press('r');
@@ -67,6 +76,10 @@ try {
   };
   const capture = async (name) => {
     await step(0);
+    await page.waitForFunction(() => {
+      const overlay = document.querySelector('#overlay');
+      return Number(getComputedStyle(overlay).opacity) === (overlay.classList.contains('is-hidden') ? 0 : 1);
+    });
     await page.screenshot({ path: `${output}/${name}.png` });
     await writeFile(`${output}/${name}.json`, JSON.stringify(await state(), null, 2));
   };
@@ -183,10 +196,10 @@ try {
   await move('w', 1);
   await page.keyboard.up('Shift');
   assert.ok(beforeSprint.player.z - (await state()).player.z > 6);
-  await page.mouse.move(660, 345);
-  await page.mouse.move(680, 330);
+  await look(660, 345);
+  await look(680, 330);
   assert.notEqual((await state()).player.headingDegrees, 0);
-  await page.mouse.move(1150, 330);
+  await look(1150, 330);
   await page.keyboard.press('Space');
   assert.equal((await state()).weapon.shotsFired, 2);
   assert.equal((await state()).weapon.hits, 1, 'Turning before a frame must use the new aim');
